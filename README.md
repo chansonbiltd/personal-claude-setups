@@ -2,6 +2,8 @@
 
 Personal [Claude Code](https://claude.ai/code) configurations, agents, and skills used across my projects. Shared for reference and reuse.
 
+These examples of my [Claude home directory](https://code.claude.com/docs/en/claude-directory). `~/.claude`
+
 ## Contents
 
 ```
