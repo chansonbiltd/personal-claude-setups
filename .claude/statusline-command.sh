@@ -53,8 +53,8 @@ else
     ctx_seg="0% ctx"
 fi
 
-# Session cost (claude-sonnet-4: $3/M input, $15/M output)
-cost=$(echo "$total_input $total_output" | awk '{printf "%.2f", ($1/1000000)*3 + ($2/1000000)*15}')
+# Session cost (provided by Claude Code, model-aware)
+cost=$(echo "$input" | "$JQ" -r '.cost.total_cost_usd // 0' | awk '{printf "%.2f", $1}')
 cost_seg="\$${cost} USD"
 
 # Cumulative session token totals
