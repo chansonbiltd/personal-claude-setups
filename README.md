@@ -27,7 +27,7 @@ Personal [Claude Code](https://claude.ai/code) configurations, agents, and skill
 
 The `settings.json` wires up a custom statusline via `statusline-command.sh` that surfaces real-time session information directly in the Claude Code UI.
 
-![Claude Code custom statusline](./docs/statusline.png)
+![Claude Code custom statusline](./statusline.png)
 
 **Displays:**
 - Active model name
