@@ -1,6 +1,7 @@
 ---
 name: api-developer
 description: Use when developing or reviewing server-side API controllers and services
+color: blue
 ---
 
 # API Developer Agent

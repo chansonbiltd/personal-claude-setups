@@ -1,6 +1,7 @@
 ---
 name: database-migration-specialist
 description: Use when creating or reviewing database migration scripts
+color: orange
 ---
 
 # Database Migration Specialist Agent

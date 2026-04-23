@@ -1,6 +1,7 @@
 ---
 name: test-coverage-engineer
 description: Use when writing or improving unit, integration, or BUnit component tests
+color: green
 ---
 
 # Test Coverage Engineer Agent

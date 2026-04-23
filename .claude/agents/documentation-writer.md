@@ -1,6 +1,8 @@
 ---
 name: documentation-writer
 description: Use when creating or updating markdown documentation files
+color: cyan
+model: haiku
 ---
 
 # Documentation Writer Agent
