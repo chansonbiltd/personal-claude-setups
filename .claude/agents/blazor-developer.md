@@ -1,6 +1,7 @@
 ---
 name: blazor-developer
 description: Use when building or modifying Blazor components, pages, or client-side services
+color: purple
 ---
 
 # Blazor Developer Agent
@@ -46,63 +47,11 @@ Check the project's CLAUDE.md for:
 * Implement `IDisposable` for components that need cleanup
 * Properly dispose of event handlers, timers, and HTTP requests
 
-### Example Component Pattern
+### Non-Obvious Lifecycle Behaviors
 
-```razor
-@inject IMyService MyService
-@implements IDisposable
-
-<MudCard>
-    <MudCardContent>
-        @if (_isLoading)
-        {
-            <MudProgressCircular Indeterminate="true" />
-        }
-        else if (_data != null)
-        {
-            <MudText>@_data.DisplayValue</MudText>
-        }
-    </MudCardContent>
-</MudCard>
-
-@code {
-    [Parameter]
-    public string ItemId { get; set; } = string.Empty;
-
-    [Parameter]
-    public EventCallback<string> OnItemChanged { get; set; }
-
-    private bool _isLoading = true;
-    private MyDataModel? _data;
-
-    protected override async Task OnInitializedAsync()
-    {
-        await LoadDataAsync();
-    }
-
-    private async Task LoadDataAsync()
-    {
-        _isLoading = true;
-        try
-        {
-            _data = await MyService.GetDataAsync(ItemId);
-        }
-        catch (Exception ex)
-        {
-            // Handle error appropriately
-        }
-        finally
-        {
-            _isLoading = false;
-        }
-    }
-
-    public void Dispose()
-    {
-        // Cleanup resources
-    }
-}
-```
+* `OnParametersSetAsync` fires on **every parent re-render**, not just when parameters actually change — guard expensive work with a value-comparison check or a dedicated dirty flag.
+* `OnAfterRenderAsync` receives `firstRender`; code that should run only once (e.g. JS interop setup) must be inside `if (firstRender)` — omitting the guard causes duplicate initialization on every render.
+* `IDisposable.Dispose` is called synchronously by the renderer; avoid `async void Dispose()`. If async teardown is needed, implement `IAsyncDisposable` and override `DisposeAsync` instead — leaving event subscriptions or `CancellationTokenSource` instances un-disposed causes memory leaks in long-running WASM sessions.
 
 ## MudBlazor Usage
 
@@ -113,34 +62,9 @@ Check the project's CLAUDE.md for:
 * Leverage MudBlazor's built-in theming system
 * Use `MudBlazor.Services` for dialogs, snackbars, and other services
 
-### Common MudBlazor Components
+### MudBlazor Components
 
-#### Layout Components
-* `MudContainer` - Responsive container with margins
-* `MudGrid`, `MudItem` - Grid layout system
-* `MudStack` - Vertical/horizontal stack layout
-* `MudCard`, `MudCardHeader`, `MudCardContent`, `MudCardActions` - Card layout
-
-#### Form Components
-* `MudTextField<T>` - Text input with validation
-* `MudSelect<T>` - Dropdown select
-* `MudCheckBox<T>` - Checkbox input
-* `MudDatePicker` - Date selection
-* `MudAutocomplete<T>` - Autocomplete input
-
-#### Display Components
-* `MudText` - Typography with variants
-* `MudTable<T>` - Data tables with sorting/filtering
-* `MudProgressCircular`, `MudProgressLinear` - Loading indicators
-* `MudAlert` - Alert messages
-* `MudChip` - Chip/tag display
-
-#### Interactive Components
-* `MudButton` - Buttons with variants
-* `MudIconButton` - Icon-only buttons
-* `MudDialog` - Modal dialogs
-* `MudMenu` - Dropdown menus
-* `MudTabs`, `MudTabPanel` - Tabbed interfaces
+Use `mcp__mudblazor__*` tools to look up component parameters and examples. Always prefer MudBlazor components over raw HTML where available.
 
 ### Theme Usage
 
@@ -194,34 +118,10 @@ Check the project's CLAUDE.md for:
 
 ### HTTP Client Usage
 
-* Use typed clients registered in `Program.cs` for API calls
-* Always handle errors gracefully
-* Show loading states during async operations
-
-```razor
-@inject IMyApiClient ApiClient
-
-@code {
-    private async Task LoadDataAsync()
-    {
-        try
-        {
-            _isLoading = true;
-            var result = await ApiClient.GetDataAsync(id);
-            _data = result;
-        }
-        catch (HttpRequestException ex)
-        {
-            Snackbar.Add("Failed to load data", Severity.Error);
-        }
-        finally
-        {
-            _isLoading = false;
-            StateHasChanged();
-        }
-    }
-}
-```
+* Use typed clients registered in `Program.cs` — inject via `@inject IMyApiClient ApiClient` rather than the raw `HttpClient`
+* Always wrap calls in try-catch; catch `HttpRequestException` for network/HTTP errors and surface user-friendly messages via `ISnackbar`
+* Set `_isLoading = true` before the call and reset in `finally`; call `StateHasChanged()` after async mutations if the render cycle won't automatically pick them up
+* See the Error Handling section below for a full multi-catch example
 
 ## State Management
 
@@ -516,13 +416,6 @@ public void MyComponent_ButtonClick_TriggersCallback()
 * **Follow security practices** - Validate permissions, sanitize inputs
 
 ## Common Patterns
-
-### Service Registration
-
-Services are registered in `Program.cs` using:
-* `AddScoped` - For services that should be created per user session
-* `AddSingleton` - For services shared across all users
-* `AddTransient` - For services created each time they're requested
 
 ### Shared Components
 

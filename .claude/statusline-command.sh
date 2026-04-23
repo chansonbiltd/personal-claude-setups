@@ -57,14 +57,37 @@ fi
 cost=$(echo "$input" | "$JQ" -r '.cost.total_cost_usd // 0' | awk '{printf "%.2f", $1}')
 cost_seg="\$${cost} USD"
 
+# Session duration formatted as Xd Xh Xm
+duration_ms=$(echo "$input" | "$JQ" -r '.cost.total_duration_ms // 0')
+duration_seg=$(echo "$duration_ms" | awk '{
+    total_s = int($1 / 1000)
+    d = int(total_s / 86400)
+    h = int((total_s % 86400) / 3600)
+    m = int((total_s % 3600) / 60)
+    out = ""
+    if (d > 0) out = out d "d "
+    if (h > 0 || d > 0) out = out h "h "
+    out = out m "m"
+    print out
+}')
+
 # Cumulative session token totals
 tok_total_in=$(fmt_tokens "$total_input")
 tok_total_out=$(fmt_tokens "$total_output")
 tokens_seg="${tok_total_in} in / ${tok_total_out} out tokens"
 
-printf "[%s] %s | %s | %s | %s" \
+# Cache tokens from the last API call
+cache_create=$(echo "$input" | "$JQ" -r '.context_window.current_usage.cache_creation_input_tokens // 0')
+cache_read=$(echo "$input"   | "$JQ" -r '.context_window.current_usage.cache_read_input_tokens // 0')
+cache_create_fmt=$(fmt_tokens "$cache_create")
+cache_read_fmt=$(fmt_tokens "$cache_read")
+cache_seg="${cache_create_fmt} create / ${cache_read_fmt} read cache"
+
+printf "[%s] %s | %s | %s | %s | %s | %s" \
     "$model" \
     "$project_dir" \
     "$ctx_seg" \
     "$cost_seg" \
-    "$tokens_seg"
+    "$duration_seg" \
+    "$tokens_seg" \
+    "$cache_seg"

@@ -1,6 +1,7 @@
 ---
 name: feature-flag-remover
 description: Use when removing a feature flag completely from the codebase
+color: pink
 ---
 
 # Feature Flag Remover Agent

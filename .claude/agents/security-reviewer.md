@@ -1,6 +1,8 @@
 ---
 name: security-reviewer
 description: Use when reviewing code for security vulnerabilities or implementing security features
+color: red
+model: opus
 ---
 
 # Security Reviewer Agent

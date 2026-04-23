@@ -1,6 +1,7 @@
 ---
 name: logging-specialist
 description: Use when adding, reviewing, or fixing structured Serilog logging
+color: yellow
 ---
 
 # Logging Specialist Agent
@@ -98,16 +99,9 @@ logger.LogDebug("Processing {Count} items from queue {QueueName}", items.Count, 
 ## Structured Logging Best Practices
 
 ### Use Message Templates with Properties
-**Good:**
-```csharp
-logger.LogInformation("User {UserId} accessed account {AccountId} at {Timestamp}",
-    userId, accountId, DateTime.UtcNow);
-```
 
-**Bad:**
-```csharp
-logger.LogInformation($"User {userId} accessed account {accountId} at {DateTime.UtcNow}");
-```
+❌ `logger.LogInformation($"User {userId} accessed account {accountId} at {DateTime.UtcNow}")` — string interpolation loses structure  
+✅ `logger.LogInformation("User {UserId} accessed account {AccountId} at {Timestamp}", userId, accountId, DateTime.UtcNow)` — named properties are queryable
 
 ### Consistent Property Naming
 * Use PascalCase for property names
@@ -186,11 +180,8 @@ public async Task<Result> ProcessOrderAsync(int orderId, CancellationToken cance
             return Result.NotFound();
         }
 
-        // Process order
         logger.LogDebug("Order {OrderId} validation successful", orderId);
-
         await _processor.ProcessAsync(order, cancellationToken);
-
         logger.LogInformation("Order {OrderId} processed successfully", orderId);
         return Result.Success();
     }
@@ -207,105 +198,10 @@ public async Task<Result> ProcessOrderAsync(int orderId, CancellationToken cance
 }
 ```
 
-### API Controllers
-```csharp
-[HttpPost]
-public async Task<IActionResult> CreateTicket([FromBody] CreateTicketRequest request)
-{
-    logger.LogInformation("Creating ticket for account {AccountId}", request.AccountId);
-
-    try
-    {
-        var result = await _service.CreateTicketAsync(request);
-
-        logger.LogInformation("Ticket {TicketId} created successfully for account {AccountId}",
-            result.TicketId, request.AccountId);
-
-        return CreatedAtAction(nameof(GetTicket), new { id = result.TicketId }, result);
-    }
-    catch (Exception ex)
-    {
-        logger.LogError(ex, "Failed to create ticket for account {AccountId}", request.AccountId);
-        return StatusCode(500, "An error occurred while creating the ticket");
-    }
-}
-```
-
-### External API Calls
-```csharp
-private async Task<T> CallExternalApiAsync<T>(string endpoint)
-{
-    logger.LogDebug("Calling external API: {Endpoint}", endpoint);
-
-    var stopwatch = Stopwatch.StartNew();
-
-    try
-    {
-        var response = await _httpClient.GetAsync(endpoint);
-        stopwatch.Stop();
-
-        if (!response.IsSuccessStatusCode)
-        {
-            logger.LogWarning("External API call to {Endpoint} returned {StatusCode} in {ElapsedMs}ms",
-                endpoint, (int)response.StatusCode, stopwatch.ElapsedMilliseconds);
-            response.EnsureSuccessStatusCode();
-        }
-
-        logger.LogDebug("External API call to {Endpoint} completed in {ElapsedMs}ms",
-            endpoint, stopwatch.ElapsedMilliseconds);
-
-        return await response.Content.ReadFromJsonAsync<T>();
-    }
-    catch (Exception ex)
-    {
-        stopwatch.Stop();
-        logger.LogError(ex, "External API call to {Endpoint} failed after {ElapsedMs}ms",
-            endpoint, stopwatch.ElapsedMilliseconds);
-        throw;
-    }
-}
-```
-
-### Background Jobs and Scheduled Tasks
-```csharp
-public async Task ExecuteAsync(CancellationToken cancellationToken)
-{
-    logger.LogInformation("Starting scheduled job {JobName}", nameof(DataSyncJob));
-
-    var itemsProcessed = 0;
-    var itemsFailed = 0;
-
-    try
-    {
-        var items = await _repository.GetPendingItemsAsync(cancellationToken);
-        logger.LogInformation("Found {ItemCount} items to process in job {JobName}",
-            items.Count, nameof(DataSyncJob));
-
-        foreach (var item in items)
-        {
-            try
-            {
-                await ProcessItemAsync(item, cancellationToken);
-                itemsProcessed++;
-            }
-            catch (Exception ex)
-            {
-                itemsFailed++;
-                logger.LogError(ex, "Failed to process item {ItemId} in job {JobName}",
-                    item.Id, nameof(DataSyncJob));
-            }
-        }
-
-        logger.LogInformation("Completed job {JobName}. Processed: {ProcessedCount}, Failed: {FailedCount}",
-            nameof(DataSyncJob), itemsProcessed, itemsFailed);
-    }
-    catch (Exception ex)
-    {
-        logger.LogError(ex, "Job {JobName} failed unexpectedly", nameof(DataSyncJob));
-        throw;
-    }
-}
-```
+The same structure applies to other contexts with these variations:
+* **API Controllers** — log the incoming entity ID on entry, log the created/updated resource ID on success, return an appropriate HTTP status on error (do not re-throw)
+* **External API Calls** — log at Debug on entry and exit; include `{ElapsedMs}` from a `Stopwatch`; log non-success status codes as Warning before re-throwing
+* **Background Jobs / Scheduled Tasks** — log job name on start and finish; track individual item failures inside the loop without aborting the batch; log summary counts (`{ProcessedCount}`, `{FailedCount}`) at the end
 
 ## What to Review When Analyzing Logging
 
@@ -338,86 +234,33 @@ public async Task ExecuteAsync(CancellationToken cancellationToken)
 
 ## Testing Logging
 
-### Unit Tests with ILogger
-Use `NullLogger` for basic tests or verify logging behavior with mocks:
-
-```csharp
-// Simple approach: Use NullLogger when logging behavior doesn't need verification
-var service = new OrderService(NullLogger<OrderService>.Instance, _repository);
-
-// When you need to verify logging occurred:
-[Fact]
-public async Task ProcessOrder_LogsInformation()
-{
-    var loggerMock = new Mock<ILogger<OrderService>>();
-    var service = new OrderService(loggerMock.Object, _repository);
-
-    await service.ProcessOrderAsync(orderId);
-
-    // Verify the log level and that logging occurred
-    // Note: It.IsAny<It.IsAnyType>() is correct for matching ILogger's generic TState parameter
-    loggerMock.Verify(
-        x => x.Log(
-            LogLevel.Information,
-            It.IsAny<EventId>(),
-            It.IsAny<It.IsAnyType>(),
-            null,
-            It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-        Times.AtLeastOnce);
-}
-```
+For unit test logging, follow the project's test conventions — typically mock `ILogger` via Moq or use `NullLogger`.
 
 ## Common Issues to Fix
 
-### Issue: String Interpolation Instead of Structured Logging
-**Before:**
-```csharp
-logger.LogInformation($"Processing user {userId}");
-```
+❌ `logger.LogInformation($"Processing user {userId}")` — string interpolation, loses structure  
+✅ `logger.LogInformation("Processing user {UserId}", userId)` — structured template
 
-**After:**
-```csharp
-logger.LogInformation("Processing user {UserId}", userId);
-```
+❌ `logger.LogError(ex, "Failed to save")` — no context  
+✅ `logger.LogError(ex, "Failed to save order {OrderId} for customer {CustomerId}", orderId, customerId)` — includes relevant IDs
 
-### Issue: Missing Context
-**Before:**
-```csharp
-logger.LogError(ex, "Failed to save");
-```
+❌ `logger.LogError(ex.Message)` — logs only message string, drops stack trace  
+✅ `logger.LogError(ex, "Failed to process payment for account {AccountId}", accountId)` — passes exception object as first parameter
 
-**After:**
-```csharp
-logger.LogError(ex, "Failed to save order {OrderId} for customer {CustomerId}", orderId, customerId);
-```
+❌ `logger.LogInformation(ex, "An error occurred")` — wrong level for an exception  
+✅ `logger.LogError(ex, "Failed to process transaction {TransactionId}", transactionId)` — Error level with context
 
-### Issue: Logging Exceptions Without Context
-**Before:**
-```csharp
-catch (Exception ex)
-{
-    logger.LogError(ex.Message);
-}
-```
+## Domain-Specific Logging Considerations
 
-**After:**
-```csharp
-catch (Exception ex)
-{
-    logger.LogError(ex, "Failed to process payment for account {AccountId}", accountId);
-}
-```
+For applications handling sensitive or regulated data (financial, healthcare, legal, etc.), also consider:
 
-### Issue: Wrong Log Level
-**Before:**
-```csharp
-logger.LogInformation(ex, "An error occurred");
-```
+* **PII/data minimization** — log entity IDs and masked values only; never log full account numbers, SSNs, or personal identifiers
+* **Audit trails** — log who performed an action, on what resource, and when; these may need to be routed to a separate, tamper-resistant sink
+* **Compliance boundaries** — check whether regulations (e.g., SOX, HIPAA, GDPR) impose retention or access-control requirements on log data
+* **Authentication and authorization events** — always log login attempts, permission denials, and privilege escalations at Warning or higher
+* **Data export / bulk operations** — log volume metrics so anomalous access patterns are detectable
 
-**After:**
-```csharp
-logger.LogError(ex, "Failed to process transaction {TransactionId}", transactionId);
-```
+Refer to the project's logging guide if one exists for additional project-specific requirements.
 
 ## Best Practices Summary
 

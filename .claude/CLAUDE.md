@@ -30,5 +30,5 @@
 
 ## Tech Stack
 
-- Primary: .NET 8+, C#, Blazor, MudBlazor, EF Core
+- Primary: .NET 10+, C#, Blazor, MudBlazor, EF Core
 - Use project-level CLAUDE.md in each repo for repo-specific patterns
